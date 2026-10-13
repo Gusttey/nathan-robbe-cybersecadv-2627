@@ -1,0 +1,3 @@
+# Gitleaks Baseline Ignore File
+# Voeg hier fingerprints of paden toe van bestaande tokens/geheimen in de starter app.
+# Formaat: <commit-sha>:<pad>:<regelnummer> of specifieke fingerprint

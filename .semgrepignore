@@ -1,0 +1,5 @@
+# Semgrep Baseline Ignore File
+# Paden of specifieke bestanden die uitgesloten moeten worden van SAST analyse.
+bin/
+obj/
+*.lock.json
