@@ -29,6 +29,7 @@ jobs:
   sca:
     name: Software Composition Analysis (SCA)
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     permissions:
       contents: read
       pull-requests: read
@@ -49,7 +50,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'dotnet' ] # Pas dit aan naar jouw stack (bijv. 'typescript', 'python', 'go')
+        language: [ 'javascript', 'csharp' ] # Pas dit aan naar jouw stack (bijv. 'typescript', 'python', 'go')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -58,6 +59,10 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
+          
+      - name: Autobuild
+        if: matrix.language == 'csharp'
+        uses: github/codeql-action/autobuild@v3
           
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
