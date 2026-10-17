@@ -11,43 +11,27 @@ permissions:
 
 jobs:
   # =========================================================================
-  # 1. SECRET SCANNING — DSOMM: Secret Management (Level 2/3)
+  # 1. SECRET SCANNING & SCA — DSOMM: Secret Management & SCA (Level 2/3)
   # =========================================================================
-  secret-scanning:
-    name: Secret Scanning (Gitleaks)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Volledige git geschiedenis vereist voor geheimen-analyse
-
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # =========================================================================
-  # 2. SOFTWARE COMPOSITION ANALYSIS (SCA) — DSOMM: Software Composition Analysis (Level 2)
-  # =========================================================================
-  sca:
-    name: Software Composition Analysis (Trivy)
+  security-scan:
+    name: Security Scan (Trivy Secrets & SCA)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run Trivy SCA scan
+      - name: Run Trivy Vulnerability and Secret Scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: '.'
+          security-checks: 'vuln,secret'
           severity: 'HIGH,CRITICAL'
-          exit-code: '1' # Faalt de pipeline bij nieuwe niet-getolereerde HIGH of CRITICAL kwetsbaarheden
+          exit-code: '1'
           ignore-unfixed: false
 
   # =========================================================================
-  # 3. STATIC APPLICATION SECURITY TESTING (SAST) — DSOMM: Static Depth for Applications (Level 2)
+  # 2. STATIC APPLICATION SECURITY TESTING (SAST) — DSOMM: Static Depth (Level 2)
   # =========================================================================
   sast:
     name: Static Application Security Testing (Semgrep)
