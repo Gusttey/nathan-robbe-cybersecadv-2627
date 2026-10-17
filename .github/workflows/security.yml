@@ -25,7 +25,7 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          security-checks: 'vuln,secret'
+          scanners: 'vuln,secret'
           severity: 'HIGH,CRITICAL'
           exit-code: '1'
           ignore-unfixed: false
