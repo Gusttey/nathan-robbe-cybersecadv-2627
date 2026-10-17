@@ -1,4 +1,4 @@
-# Unbreakable
+# Unbreakable - Uitrol door Robbe Augustyns en Nathan Cordier
 
 Starter app voor het vak Cyber Security Advanced aan AP Hogeschool.
 
