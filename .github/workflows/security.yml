@@ -44,3 +44,25 @@ jobs:
 
       - name: Run Semgrep SAST
         run: semgrep scan --config auto --severity ERROR --error
+
+  # =========================================================================
+  # 3. CONTINUOUS DEPLOYMENT (CD)
+  # =========================================================================
+  deploy:
+    name: Deploy to Server
+    needs: [security-scan, sast]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute remote deployment commands
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd /pad/naar/jouw/e2ee-app
+            git pull origin main
+            docker compose pull
+            docker compose up -d --build
