@@ -1,23 +1,74 @@
 services:
+  bunkerweb:
+    image: bunkerity/bunkerweb:1.6.15
+    container_name: bunkerweb
+    ports:
+      - "80:8080/tcp"
+      - "443:8443/tcp"
+      - "443:8443/udp"
+    environment:
+      - USE_API=yes
+      - API_WHITELIST_IP=127.0.0.0/8 10.20.30.0/24
+      - USE_IPV6=yes
+    restart: unless-stopped
+    networks:
+      - bw-universe
+      - bw-services
+
+  bw-scheduler:
+    image: bunkerity/bunkerweb-scheduler:1.6.15
+    container_name: bw-scheduler
+    depends_on:
+      - bunkerweb
+    volumes:
+      - bw-storage:/data
+    environment:
+      - BUNKERWEB_INSTANCES=bunkerweb
+      - SERVER_NAME=${SERVER_NAME}
+      - AUTO_LETS_ENCRYPT=yes
+      - DISABLE_DEFAULT_SERVER=yes
+      - USE_REVERSE_PROXY=yes
+      - REVERSE_PROXY_URL=/
+      - REVERSE_PROXY_HOST=http://app:8080
+      - USE_API=yes
+      - API_WHITELIST_IP=127.0.0.0/8 10.20.30.0/24
+      - USE_IPV6=yes
+    restart: unless-stopped
+    networks:
+      - bw-universe
+
   app:
     build: ./app
-    ports:
-      - "8080:8080"
     environment:
-      ConnectionStrings__Unbreakable: "Host=db;Port=5432;Database=unbreakable;Username=unbreakable;Password=Unbr3akable!2026"
+      ConnectionStrings__Unbreakable: "Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
     depends_on:
       - db
     restart: unless-stopped
+    networks:
+      - bw-services
+      - db-net
 
   db:
     image: postgres:17
     environment:
-      POSTGRES_DB: unbreakable
-      POSTGRES_USER: unbreakable
-      POSTGRES_PASSWORD: Unbr3akable!2026
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - dbdata:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - db-net
 
 volumes:
   dbdata:
+  bw-storage:
+
+networks:
+  bw-universe:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.20.30.0/24
+  bw-services:
+  db-net:
