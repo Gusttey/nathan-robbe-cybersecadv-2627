@@ -2,4 +2,4 @@
 # Voeg hier geaccepteerde CVE-nummers toe van de initiële Unbreakable starter app.
 # Formaat: CVE-XXXX-XXXXX
 # Reden: Bestaande kwetsbaarheid in starter app (wordt gemitigeerd in latere labo-opdrachten).
-CVE-2024-21907
+# CVE-2024-21907

@@ -11,27 +11,44 @@ permissions:
 
 jobs:
   # =========================================================================
-  # 1. SECRET SCANNING & SCA — DSOMM: Secret Management & SCA (Level 2/3)
+  # 1. SECRET SCANNING — DSOMM: Secret Management (Level 2)
   # =========================================================================
-  security-scan:
-    name: Security Scan (Trivy Secrets & SCA)
+  secret-scanning:
+    name: Secret Scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =========================================================================
+  # 2. SOFTWARE COMPOSITION ANALYSIS (SCA) — DSOMM: Software Composition Analysis (Level 2)
+  # =========================================================================
+  sca:
+    name: Software Composition Analysis (Trivy)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run Trivy Vulnerability and Secret Scan
+      - name: Run Trivy SCA
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          scanners: 'vuln,secret'
+          scanners: 'vuln'
           severity: 'HIGH,CRITICAL'
           exit-code: '1'
           ignore-unfixed: false
 
   # =========================================================================
-  # 2. STATIC APPLICATION SECURITY TESTING (SAST) — DSOMM: Static Depth (Level 2)
+  # 3. STATIC APPLICATION SECURITY TESTING (SAST) — DSOMM: Static Depth (Level 2)
   # =========================================================================
   sast:
     name: Static Application Security Testing (Semgrep)
@@ -46,7 +63,7 @@ jobs:
         run: semgrep scan --config auto --severity ERROR --error
 
   # =========================================================================
-  # 3. CONTINUOUS DEPLOYMENT (CD) 
+  # 4. CONTINUOUS DEPLOYMENT (CD) 
   # =========================================================================
 
   # Will add a self-hosted runner in the future
