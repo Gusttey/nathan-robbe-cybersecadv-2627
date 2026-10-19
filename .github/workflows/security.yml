@@ -63,7 +63,18 @@ jobs:
         run: semgrep scan --config auto --severity ERROR --error
 
   # =========================================================================
-  # 4. CONTINUOUS DEPLOYMENT (CD) 
+  # 4. CONTINUOUS DEPLOYMENT (CD) — DSOMM: Build and Deployment (Level 2)
   # =========================================================================
+  deploy:
+    name: Deploy to Server (Self-hosted Runner)
+    needs: [secret-scanning, sca, sast]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  # Will add a self-hosted runner in the future
+      - name: Deploy with Docker Compose
+        run: |
+          docker compose pull || true
+          docker compose up -d --build
