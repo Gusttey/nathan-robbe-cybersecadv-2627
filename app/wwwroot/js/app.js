@@ -1,6 +1,7 @@
 // De schermen van Unbreakable. Navigeren gebeurt met het deel na # in de URL.
 
 import { api, currentUser, setUser } from './api.js';
+import { encrypt, decrypt, computeMac, verifyMac } from './crypto.js';
 
 const app = document.getElementById('app');
 
@@ -62,13 +63,11 @@ function renderLogin() {
 
 async function renderInbox(params) {
     const user = currentUser();
-    const q = params.get('q') || '';
     const from = params.get('from') || '';
 
     const all = await api.inbox();
     const senders = [...new Set(all.map(m => m.sender))].sort();
-    const found = q ? await api.search(q) : all;
-    const messages = found.filter(m => !from || m.sender === from);
+    const messages = all.filter(m => !from || m.sender === from);
 
     app.innerHTML = `
         <h1>Inbox van ${escapeHtml(user)}</h1>
@@ -86,31 +85,23 @@ async function renderInbox(params) {
                     </select>
                 </div>
                 <div class="col-auto">
-                    <label for="q">Zoeken</label>
-                    <input id="q" class="form-control" value="${escapeHtml(q)}" />
-                </div>
-                <div class="col-auto">
                     <button type="submit" class="btn btn-secondary">Filter</button>
                 </div>
             </div>
         </form>
-        <p id="searched"></p>
         <div id="list"></div>`;
-
-    if (q) {
-        window.jQuery('#searched').html('Je zocht naar: ' + q);
-    }
 
     const rows = messages.map(m => `
         <tr>
             <td>${escapeHtml(m.sender)}</td>
-            <td><a href="#/bericht/${m.id}">${m.subject}</a></td>
+            <td><a href="#/bericht/${m.id}"><code>${escapeHtml(m.ciphertext)}</code></a></td>
+            <td>${escapeHtml(m.keyLine)}</td>
             <td>${formatDate(m.sentAt)}</td>
         </tr>`).join('');
 
     document.getElementById('list').innerHTML = messages.length
         ? `<table class="table">
-               <thead><tr><th>Van</th><th>Onderwerp</th><th>Verzonden</th></tr></thead>
+               <thead><tr><th>Van</th><th>Ciphertext</th><th>Regel</th><th>Verzonden</th></tr></thead>
                <tbody>${rows}</tbody>
            </table>`
         : '<p class="text-muted">Geen berichten.</p>';
@@ -118,9 +109,7 @@ async function renderInbox(params) {
     document.getElementById('filter').addEventListener('submit', (event) => {
         event.preventDefault();
         const next = new URLSearchParams();
-        const newQ = document.getElementById('q').value;
         const newFrom = document.getElementById('from').value;
-        if (newQ) next.set('q', newQ);
         if (newFrom) next.set('from', newFrom);
         location.hash = '#/inbox' + (next.toString() ? '?' + next.toString() : '');
     });
@@ -142,19 +131,62 @@ async function renderMessage(id) {
     const m = await api.message(id);
 
     app.innerHTML = `
-        <h1>${m.subject}</h1>
+        <h1>Bericht lezen</h1>
         <dl class="row">
             <dt class="col-sm-2">Van</dt><dd class="col-sm-10">${escapeHtml(m.sender)}</dd>
             <dt class="col-sm-2">Aan</dt><dd class="col-sm-10">${escapeHtml(m.recipient)}</dd>
             <dt class="col-sm-2">Verzonden</dt><dd class="col-sm-10">${formatDate(m.sentAt)}</dd>
+            <dt class="col-sm-2">Regel in codeboek</dt><dd class="col-sm-10">${escapeHtml(m.keyLine)}</dd>
+            <dt class="col-sm-2">Ciphertext</dt><dd class="col-sm-10"><code>${escapeHtml(m.ciphertext)}</code></dd>
+            <dt class="col-sm-2">MAC</dt><dd class="col-sm-10"><code>${escapeHtml(m.mac)}</code></dd>
         </dl>
-        <div class="card mb-3"><div class="card-body message-body" id="body"></div></div>
+        <div class="row">
+            <div class="col-md-8">
+                <form id="decrypt" autocomplete="off">
+                    <div class="form-group">
+                        <label for="key">Sleutel (regel ${escapeHtml(m.keyLine)} uit je codeboek)</label>
+                        <input id="key" class="form-control" required autocomplete="off" />
+                    </div>
+                    <div class="form-group">
+                        <label for="hmac-key">HMAC-sleutel</label>
+                        <input id="hmac-key" class="form-control" required autocomplete="off" />
+                    </div>
+                    <button type="submit" class="btn btn-primary">Controleren en ontsleutelen</button>
+                </form>
+            </div>
+        </div>
+        <div id="result" class="message-body my-3"></div>
         <p>
             <button id="delete" class="btn btn-outline-danger">Verwijderen</button>
             <a href="#/inbox" class="btn btn-link">Terug naar je inbox</a>
         </p>`;
 
-    document.getElementById('body').textContent = m.body;
+    document.getElementById('decrypt').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const result = document.getElementById('result');
+        const key = document.getElementById('key').value;
+        const hmacKey = document.getElementById('hmac-key').value;
+
+        // De sleutels blijven niet in het formulier staan.
+        event.target.reset();
+
+        try {
+            // Eerst de MAC controleren: een gewijzigd bericht ontsleutelen we niet.
+            const valid = await verifyMac(hmacKey, m.keyLine, m.ciphertext, m.mac);
+            if (!valid) {
+                result.className = 'alert alert-danger message-body my-3';
+                result.textContent = 'MAC ongeldig: het bericht of het regelnummer is gewijzigd, ' +
+                    'of de HMAC-sleutel is fout. Het bericht is niet ontsleuteld.';
+                return;
+            }
+
+            result.className = 'alert alert-success message-body my-3';
+            result.textContent = 'MAC geldig. Bericht: ' + decrypt(m.ciphertext, key);
+        } catch (error) {
+            result.className = 'alert alert-danger message-body my-3';
+            result.textContent = error.message;
+        }
+    });
 
     document.getElementById('delete').addEventListener('click', async () => {
         if (confirm('Ben je zeker dat je dit bericht wil verwijderen?')) {
@@ -174,7 +206,7 @@ async function renderNew() {
         <p class="text-muted">Van: ${escapeHtml(currentUser())}</p>
         <div class="row">
             <div class="col-md-8">
-                <form id="compose">
+                <form id="compose" autocomplete="off">
                     <div class="form-group">
                         <label for="recipient">Aan</label>
                         <input id="recipient" class="form-control" list="known-users" autocomplete="off"
@@ -184,27 +216,55 @@ async function renderNew() {
                         </datalist>
                     </div>
                     <div class="form-group">
-                        <label for="subject">Onderwerp</label>
-                        <input id="subject" class="form-control" required maxlength="100" />
+                        <label for="text">Bericht</label>
+                        <input id="text" class="form-control" required maxlength="2000" autocomplete="off" />
+                        <small class="form-text text-muted">Enkel letters, cijfers en spaties. Niet langer dan je sleutel.</small>
                     </div>
                     <div class="form-group">
-                        <label for="text">Bericht</label>
-                        <textarea id="text" class="form-control" rows="6" required maxlength="2000"></textarea>
+                        <label for="key-line">Regelnummer in het codeboek</label>
+                        <input id="key-line" class="form-control" type="number" min="1" required autocomplete="off" />
+                        <small class="form-text text-muted">Gebruik elke regel maar één keer.</small>
                     </div>
-                    <button type="submit" class="btn btn-primary">Versturen</button>
+                    <div class="form-group">
+                        <label for="key">Sleutel (de tekst van die regel)</label>
+                        <input id="key" class="form-control" required autocomplete="off" />
+                    </div>
+                    <div class="form-group">
+                        <label for="hmac-key">HMAC-sleutel</label>
+                        <input id="hmac-key" class="form-control" required autocomplete="off" />
+                    </div>
+                    <button type="submit" class="btn btn-primary">Versleutelen en versturen</button>
                     <a href="#/inbox" class="btn btn-link">Annuleren</a>
                 </form>
+                <div id="error" class="alert alert-danger mt-3" hidden></div>
             </div>
         </div>`;
 
     document.getElementById('compose').addEventListener('submit', async (event) => {
         event.preventDefault();
-        await api.send({
-            recipient: document.getElementById('recipient').value.trim(),
-            subject: document.getElementById('subject').value,
-            body: document.getElementById('text').value,
-        });
-        location.hash = '#/inbox';
+        const error = document.getElementById('error');
+        error.hidden = true;
+
+        try {
+            const keyLine = Number(document.getElementById('key-line').value);
+            const ciphertext = encrypt(
+                document.getElementById('text').value,
+                document.getElementById('key').value
+            );
+            const mac = await computeMac(document.getElementById('hmac-key').value, keyLine, ciphertext);
+
+            // Enkel dit gaat naar de server: geen bericht en geen sleutel.
+            await api.send({
+                recipient: document.getElementById('recipient').value.trim(),
+                ciphertext,
+                keyLine,
+                mac,
+            });
+            location.hash = '#/inbox';
+        } catch (err) {
+            error.textContent = err.message;
+            error.hidden = false;
+        }
     });
 }
 
@@ -219,6 +279,8 @@ function renderAbout() {
            Ze werkt, maar is nog helemaal niet veilig. Doorheen het semester maken jullie ze beter.</p>
         <p>De app bestaat uit twee delen: deze single page app in je browser, en een API op de server.
            Bekijk de developer tools van je browser om te zien wat er over en weer gaat.</p>
+        <p>Berichten worden in je browser versleuteld met een sleutel uit een codeboek dat je vooraf met de
+           ontvanger uitwisselt. De server krijgt enkel de ciphertext, de MAC en het regelnummer.</p>
         <p class="text-danger">Gebruik deze app enkel in je eigen labomgeving en nooit met echte gegevens.</p>`;
 }
 

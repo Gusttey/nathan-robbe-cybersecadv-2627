@@ -16,7 +16,7 @@ cd <jouw repo>
 docker compose up -d --build
 ```
 
-Surf daarna naar `http://localhost:8080`, of naar poort 8080 van je server. Vul een naam in, bijvoorbeeld **Anna**, **Bram** of **Chris**: die hebben al berichten.
+Surf daarna naar `http://localhost:8080`, of naar poort 8080 van je server. Vul een naam in, bijvoorbeeld **Anna** of **Bram**. De databank start leeg.
 
 Stoppen doe je met `docker compose down`. Wil je opnieuw beginnen met een lege databank, gebruik dan `docker compose down -v`.
 
@@ -36,8 +36,9 @@ app/
     index.html
     js/app.js               de schermen
     js/api.js               alle calls naar de API
+    js/crypto.js            versleutelen (modulo 37) en HMAC, enkel in de browser
     lib/                    Bootstrap en jQuery
-docs/threat-model.md        basis threat model van de starter app
+docs/threat-model.md        threat model met de versleuteling en de sleutels
 ```
 
 ### De API
@@ -47,7 +48,6 @@ docs/threat-model.md        basis threat model van de starter app
 | GET | `/health` | leeft de app? |
 | GET | `/api/users` | alle gekende namen |
 | GET | `/api/messages` | je inbox, optioneel `?from=<naam>` |
-| GET | `/api/messages/search?q=<tekst>` | zoeken in je inbox |
 | GET | `/api/messages/{id}` | één bericht |
 | POST | `/api/messages` | bericht versturen |
 | DELETE | `/api/messages/{id}` | bericht verwijderen |
@@ -56,6 +56,12 @@ docs/threat-model.md        basis threat model van de starter app
 Wie je bent, stuurt de SPA mee in de header `X-User`.
 
 Technologie: ASP.NET Core minimal API op .NET 10, Entity Framework Core met PostgreSQL 17, en vanilla JavaScript met Bootstrap, zonder build stap.
+
+### Versleuteling
+
+De browser versleutelt elk bericht met een one-time pad in modulo 37 (A-Z, 0-9 en `_` voor een spatie) en berekent een HMAC SHA256 over het regelnummer en de ciphertext. De server krijgt enkel de ciphertext, het regelnummer en de MAC.
+
+Het codeboek en de HMAC-sleutel wissel je vooraf uit, buiten de app. Ze horen niet op de server en niet in deze repo. Elke regel gebruik je maar één keer. Web Crypto werkt enkel via HTTPS of op localhost.
 
 ## Herkomst
 

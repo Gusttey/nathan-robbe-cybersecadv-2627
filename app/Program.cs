@@ -13,7 +13,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Databank aanmaken en vullen met voorbeeldberichten.
+// Databank aanmaken. We vullen ze niet met voorbeeldberichten: er mag enkel ciphertext in staan.
 // De databank kan iets later opstarten dan de app, dus we proberen een paar keer.
 using (var scope = app.Services.CreateScope())
 {
@@ -25,7 +25,6 @@ using (var scope = app.Services.CreateScope())
         try
         {
             context.Database.EnsureCreated();
-            SeedData.Initialize(context);
             break;
         }
         catch (Exception ex) when (attempt < 30)
@@ -72,22 +71,6 @@ api.MapGet("/messages", async (HttpRequest request, UnbreakableContext db) =>
     }
 
     return Results.Ok(await inbox.OrderByDescending(m => m.SentAt).ToListAsync());
-});
-
-api.MapGet("/messages/search", async (HttpRequest request, UnbreakableContext db) =>
-{
-    var user = CurrentUser(request);
-    if (string.IsNullOrEmpty(user))
-    {
-        return Results.Unauthorized();
-    }
-
-    var q = request.Query["q"].ToString();
-    var sql = "SELECT * FROM \"Messages\" WHERE \"Recipient\" = '" + user + "' " +
-              "AND (\"Subject\" ILIKE '%" + q + "%' OR \"Body\" ILIKE '%" + q + "%')";
-
-    var messages = await db.Messages.FromSqlRaw(sql).OrderByDescending(m => m.SentAt).ToListAsync();
-    return Results.Ok(messages);
 });
 
 api.MapGet("/messages/export", async (HttpRequest request, UnbreakableContext db) =>
