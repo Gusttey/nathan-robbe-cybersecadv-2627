@@ -38,7 +38,11 @@ app/
     js/api.js               alle calls naar de API
     js/crypto.js            versleutelen (modulo 37) en HMAC, enkel in de browser
     lib/                    Bootstrap en jQuery
-docs/threat-model.md        threat model met de versleuteling en de sleutels
+docs/
+  threat-model.md           architectuur, data stores en dreigingen T1 tot T23
+  architectuur.png          architectuurdiagram
+  threat-model.png          threat model met de T-nummers per component
+  bron/diagrammen.py        maakt beide afbeeldingen opnieuw (vereist Graphviz)
 ```
 
 ### De API
